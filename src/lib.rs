@@ -38,6 +38,7 @@ extern crate unsafe_unwrap;
 pub mod base;
 pub mod error;
 pub mod index;
+pub mod modify;
 pub mod prelude;
 pub mod spec;
 

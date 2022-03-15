@@ -76,7 +76,7 @@ impl<'i, 'dt: 'i> DTINode<'i, 'dt> {
     }
 
     pub fn next_dfs(&self) -> Option<&'i DTINode<'i, 'dt>> {
-        unsafe { self.first_child().or_else(|| self.next.as_ref()) }
+        unsafe { self.first_child().or(self.next.as_ref()) }
     }
 
     pub fn next_sibling(&self) -> Option<&'i DTINode<'i, 'dt>> {
