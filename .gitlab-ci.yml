@@ -1,69 +1,11 @@
-image: registry.gitlab.com/spwilson2/rust-sccache
+include:
+  # NOTE: the "remote" examples here:
+  # https://docs.gitlab.com/ee/ci/yaml/includes.html DONT WORK
 
-.test-template: &test-template
-  cache:
-    key: build-cache-$RUST_TOOLCHAIN
-    paths: 
-      - .cargo/
-      - .cache/
-      - target/
-  before_script:
-    - export RUST_BACKTRACE=1
-    - rustup default "$RUST_TOOLCHAIN"
-    - rustup --version
-    - rustc --version
-    - cargo --version
-  script:
-    - cargo test --tests --jobs 1
-    - cargo test --tests --jobs 1 --release
-    - cargo test --features doctest --doc --jobs 1
-    - cargo test --features doctest --doc --jobs 1 --release
-    - cargo test --no-default-features --tests --jobs 1
-    - cargo test --no-default-features --tests --jobs 1 --release
+  # https://gitlab.ba.rivosinc.com/rv/group_gitlab_config/raw/rivos/main/ci_includes/pre-commit-lint.yml
+  - project: 'rv/group_gitlab_config'
+    ref: rivos/main
+    file: '/ci_includes/pre-commit-lint.yml'
 
-test-stable:
-  <<: *test-template
-  variables:
-    RUST_TOOLCHAIN:  stable
-
-test-beta:
-  <<: *test-template
-  variables:
-    RUST_TOOLCHAIN:  beta
-
-test-nightly:
-  <<: *test-template
-  variables:
-    RUST_TOOLCHAIN:  nightly
-
-test-coverage:
-  <<: *test-template
-  variables:
-    RUST_TOOLCHAIN: stable
-  script:
-    - cargo install cargo-tarpaulin
-    - cargo tarpaulin --verbose
-
-test-fmt:
-  <<: *test-template
-  variables:
-    RUST_TOOLCHAIN: stable
-  script:
-    - rustup component add rustfmt
-    - cargo fmt --all --verbose -- --check
-
-test-clippy:
-  <<: *test-template
-  variables:
-    RUST_TOOLCHAIN: stable
-  script:
-    - rustup component add clippy
-    - cargo clippy -- -D warnings
-    - cargo clippy --no-default-features -- -D warnings
-
-test-docs:
-  <<: *test-template
-  variables:
-    RUST_TOOLCHAIN: nightly
-  script:
-    - cargo doc --no-deps
+stages:
+  - prebuild
