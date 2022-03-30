@@ -1,6 +1,4 @@
 #[cfg(doc)]
-use crate::base::parse::ParsedTok;
-#[cfg(doc)]
 use crate::base::*;
 
 use core::mem::size_of;
@@ -11,6 +9,9 @@ use crate::error::{DevTreeError, Result};
 
 use crate::priv_util::SliceRead;
 use crate::spec::{fdt_header, FDT_MAGIC};
+
+use crate::modify::modtoken::*;
+use crate::modify::serializer::Serializer;
 
 use fallible_iterator::FallibleIterator;
 
@@ -161,70 +162,70 @@ impl<'dt> DevTree<'dt> {
     #[inline]
     #[must_use]
     pub fn totalsize(&self) -> usize {
-        unsafe { get_be32_field!(totalsize, fdt_header, self.buf).unwrap() as usize }
+        get_be32_field!(totalsize, fdt_header, self.buf).unwrap() as usize
     }
 
     /// Returns the rsvmap offset field of the Device Tree
     #[inline]
     #[must_use]
     pub fn off_mem_rsvmap(&self) -> usize {
-        unsafe { get_be32_field!(off_mem_rsvmap, fdt_header, self.buf).unwrap() as usize }
+        get_be32_field!(off_mem_rsvmap, fdt_header, self.buf).unwrap() as usize
     }
 
     /// Returns the dt_struct offset field of the Device Tree
     #[inline]
     #[must_use]
     pub fn off_dt_struct(&self) -> usize {
-        unsafe { get_be32_field!(off_dt_struct, fdt_header, self.buf).unwrap() as usize }
+        get_be32_field!(off_dt_struct, fdt_header, self.buf).unwrap() as usize
     }
 
     /// Returns the dt_strings offset field of the Device Tree
     #[inline]
     #[must_use]
     pub fn off_dt_strings(&self) -> usize {
-        unsafe { get_be32_field!(off_dt_strings, fdt_header, self.buf).unwrap() as usize }
+        get_be32_field!(off_dt_strings, fdt_header, self.buf).unwrap() as usize
     }
 
     /// Returns the magic field of the Device Tree
     #[inline]
     #[must_use]
     pub fn magic(&self) -> u32 {
-        unsafe { get_be32_field!(magic, fdt_header, self.buf).unwrap() }
+        get_be32_field!(magic, fdt_header, self.buf).unwrap()
     }
 
     /// Returns the version field of the Device Tree
     #[inline]
     #[must_use]
     pub fn version(&self) -> u32 {
-        unsafe { get_be32_field!(version, fdt_header, self.buf).unwrap() }
+        get_be32_field!(version, fdt_header, self.buf).unwrap()
     }
 
     /// Returns the boot_cpuid_phys field of the Device Tree
     #[inline]
     #[must_use]
     pub fn boot_cpuid_phys(&self) -> u32 {
-        unsafe { get_be32_field!(boot_cpuid_phys, fdt_header, self.buf).unwrap() }
+        get_be32_field!(boot_cpuid_phys, fdt_header, self.buf).unwrap()
     }
 
     /// Returns the last_comp_version field of the Device Tree
     #[inline]
     #[must_use]
     pub fn last_comp_version(&self) -> u32 {
-        unsafe { get_be32_field!(last_comp_version, fdt_header, self.buf).unwrap() }
+        get_be32_field!(last_comp_version, fdt_header, self.buf).unwrap()
     }
 
     /// Returns the size_dt_strings field of the Device Tree
     #[inline]
     #[must_use]
     pub fn size_dt_strings(&self) -> u32 {
-        unsafe { get_be32_field!(size_dt_strings, fdt_header, self.buf).unwrap() }
+        get_be32_field!(size_dt_strings, fdt_header, self.buf).unwrap()
     }
 
     /// Returns the size_dt_struct field of the Device Tree
     #[inline]
     #[must_use]
     pub fn size_dt_struct(&self) -> u32 {
-        unsafe { get_be32_field!(size_dt_struct, fdt_header, self.buf).unwrap() }
+        get_be32_field!(size_dt_struct, fdt_header, self.buf).unwrap()
     }
 
     /// Returns a typed `*const T` to the given offset in the Device Tree buffer.
@@ -241,6 +242,16 @@ impl<'dt> DevTree<'dt> {
         } else {
             Ok(self.buf.as_ptr().add(offset) as *const T)
         }
+    }
+
+    /// Returns a string at the given offset into the strings table.
+    /// If no string exists at this offset, this function will return an error.
+    pub fn string_at_offset(&self, offset: usize) -> Result<&'dt str> {
+        use core::str::from_utf8;
+
+        let str_offset = self.off_dt_strings() + offset;
+        let name = self.buf().read_bstring0(str_offset)?;
+        Ok(from_utf8(name)?)
     }
 
     /// Returns an iterator over the Dev Tree "5.3 Memory Reservation Blocks"
@@ -268,6 +279,31 @@ impl<'dt> DevTree<'dt> {
     #[must_use]
     pub fn parse_iter(&self) -> DevTreeParseIter<'_, 'dt> {
         DevTreeParseIter::new(self)
+    }
+
+    /// Modifys the given dtb, saving the modifications into the passed-in output buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `output` - the buffer to store the modified dtb into
+    ///
+    /// * `filter_map` - a callback that specifies what modifications are made. The callback
+    /// will be called for each node in the dt using in-order traversal. there are two parameters,
+    /// a ModifyParsedTok (which is an enum that represents the type of node), and a usize, which
+    /// represents the size of the property buffer of the current node. this property buffer represents
+    /// the name of a BeginNode, the property data of a Prop node, and has no meaning for any other
+    /// type of node. the buffer can be modified as needed. the return value of this callback is
+    /// a ModifyTokenResponse, which is either Drop, Pass, or ModifySize(usize). Drop will remove
+    /// this node from the dt. Pass will keep this node in the dt without any size modifications.
+    /// ModifySize will modify the size of the node and rearrange blocks in the dt to fit the new
+    /// requested size. It is entirely up to the user to ensure that the callback inserts valid data
+    /// into the property buffer; no checks are done in that regard.
+    pub fn modify(
+        &self,
+        output: &mut [u8],
+        filter_map: &mut dyn FnMut(&mut ModifyParsedTok, usize) -> ModifyTokenResponse,
+    ) -> Result<usize> {
+        Serializer::default().modify(self, output, filter_map)
     }
 
     /// Returns the first [`DevTreeNode`] object with the provided compatible device tree property

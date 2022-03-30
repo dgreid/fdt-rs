@@ -1,5 +1,6 @@
 use core::mem::size_of;
 use core::ptr::read_unaligned;
+use core::ptr::write_unaligned;
 
 #[derive(Debug, Copy, Clone)]
 pub enum SliceReadError {
@@ -7,7 +8,13 @@ pub enum SliceReadError {
     UnexpectedEndOfInput,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum SliceWriteError {
+    UnexpectedEndOfInput,
+}
+
 pub(crate) type SliceReadResult<T> = Result<T, SliceReadError>;
+pub(crate) type SliceWriteResult = Result<(), SliceWriteError>;
 
 pub(crate) trait SliceRead<'a> {
     unsafe fn unsafe_read_be_u32(&self, pos: usize) -> SliceReadResult<u32>;
@@ -16,6 +23,13 @@ pub(crate) trait SliceRead<'a> {
     fn read_be_u64(&self, pos: usize) -> SliceReadResult<u64>;
     fn read_bstring0(&self, pos: usize) -> SliceReadResult<&'a [u8]>;
     fn nread_bstring0(&self, pos: usize, len: usize) -> SliceReadResult<&'a [u8]>;
+}
+
+pub(crate) trait SliceWrite<'a> {
+    fn write_be_u32(&self, pos: usize, value: u32) -> SliceWriteResult;
+    fn write_be_u64(&self, pos: usize, value: u64) -> SliceWriteResult;
+    fn write_bstring0(&self, pos: usize, string: &'a [u8]) -> SliceWriteResult;
+    fn write_slice(&self, pos: usize, string: &'a [u8]) -> SliceWriteResult;
 }
 
 macro_rules! unchecked_be_read {
@@ -39,6 +53,21 @@ macro_rules! be_read {
                 // We explicitly read unaligned.
                 #[allow(clippy::cast_ptr_alignment)]
                 Ok((read_unaligned::<$type>($buf.as_ptr().add($off) as *const $type)).to_be())
+            }
+        })
+    };
+}
+
+macro_rules! be_write {
+    ( $buf:ident, $type:ident, $off:expr, $val:expr ) => {
+        (if $off + size_of::<$type>() > $buf.len() {
+            Err(SliceWriteError::UnexpectedEndOfInput)
+        } else {
+            // Unsafe okay, we checked length above.
+            // We call write_aligned, so alignment isn't required.
+            unsafe {
+                #[allow(clippy::cast_ptr_alignment)]
+                Ok((write_unaligned::<$type>($buf.as_ptr().add($off) as *mut $type, $val.to_be())))
             }
         })
     };
@@ -81,5 +110,34 @@ impl<'a> SliceRead<'a> for &'a [u8] {
             }
         }
         Err(SliceReadError::UnexpectedEndOfInput)
+    }
+}
+
+impl<'a> SliceWrite<'a> for &'a mut [u8] {
+    fn write_be_u32(&self, pos: usize, value: u32) -> SliceWriteResult {
+        be_write!(self, u32, pos, value)
+    }
+
+    fn write_be_u64(&self, pos: usize, value: u64) -> SliceWriteResult {
+        be_write!(self, u64, pos, value)
+    }
+
+    fn write_bstring0(&self, pos: usize, string: &'a [u8]) -> SliceWriteResult {
+        for (i, char) in string.iter().enumerate() {
+            if let Err(e) = be_write!(self, u8, pos + i, char) {
+                return Err(e);
+            }
+        }
+
+        be_write!(self, u8, pos + string.len(), 0_u8)
+    }
+
+    fn write_slice(&self, pos: usize, slice: &'a [u8]) -> SliceWriteResult {
+        for (i, char) in slice.iter().enumerate() {
+            if let Err(e) = be_write!(self, u8, pos + i, char) {
+                return Err(e);
+            }
+        }
+        Ok(())
     }
 }

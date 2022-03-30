@@ -1,0 +1,19 @@
+repos:
+  # pull mirror from: https://github.com/pre-commit/pre-commit-hooks
+  - repo: https://gitlab.ba.rivosinc.com/pub/it/pre-commit-hooks.git
+    rev: v4.1.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-executables-have-shebangs
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-xml
+      - id: check-yaml
+      - id: detect-private-key
+      - id: forbid-new-submodules
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
