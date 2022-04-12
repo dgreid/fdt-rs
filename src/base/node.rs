@@ -20,13 +20,13 @@ impl<'a, 'dt: 'a> PartialEq for DevTreeNode<'a, 'dt> {
 impl<'a, 'dt: 'a> DevTreeNode<'a, 'dt> {
     /// Returns the name of the `DevTreeNode` (including unit address tag)
     #[inline]
-    pub fn name(&'a self) -> Result<&'dt str> {
+    pub fn name(&self) -> Result<&'dt str> {
         self.name
     }
 
     /// Returns an iterator over this node's children [`DevTreeProp`]
     #[must_use]
-    pub fn props(&'a self) -> DevTreeNodePropIter<'a, 'dt> {
+    pub fn props(&self) -> DevTreeNodePropIter<'a, 'dt> {
         DevTreeNodePropIter(self.parse_iter.clone())
     }
 
