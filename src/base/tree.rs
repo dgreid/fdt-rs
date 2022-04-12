@@ -256,7 +256,7 @@ impl<'dt> DevTree<'dt> {
 
     /// Returns an iterator over the Dev Tree "5.3 Memory Reservation Blocks"
     #[must_use]
-    pub fn reserved_entries(&self) -> DevTreeReserveEntryIter {
+    pub fn reserved_entries(&self) -> DevTreeReserveEntryIter<'_, 'dt> {
         DevTreeReserveEntryIter::new(self)
     }
 
