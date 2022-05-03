@@ -25,7 +25,7 @@ default-features = false
 version = "0.2"
 default-features = false
 [dependencies.memoffset]
-version = "0.5.4"
+version = "0.6"
 default-features = false
 [dependencies.fallible-iterator]
 version = "0.2"
